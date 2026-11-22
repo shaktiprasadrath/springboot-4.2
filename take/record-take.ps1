@@ -1,7 +1,9 @@
 # Records one IntelliJ coding take for the Spring Boot 4.2 series.
 # Run it yourself:  powershell -ExecutionPolicy Bypass -File take\record-take.ps1
-# Before: close IntelliJ. During the take (about 2-3 min): hands off mouse and keyboard.
+# Before: close IntelliJ. During the take (about 8-10 min for 5 files): hands off mouse and keyboard.
 # Emergency stop: close this PowerShell window.
+# -TestOnly: skip typing, just open the last test file and record the test run (about 2 min).
+param([switch]$TestOnly)
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
@@ -22,8 +24,15 @@ if (Get-Process idea64 -ErrorAction SilentlyContinue) { Write-Host 'Close Intell
 # IntelliJ settings (JDK 21, Maven wrapper, no auto-brackets, no pop-ups, terminal JAVA_HOME) are set once by hand.
 
 # Empty files to type into (the tested code lives in take\).
-New-Item -Force "$proj\$pkg\PaymentClient.java"      -Value '' | Out-Null
-New-Item -Force "$proj\$tpkg\PaymentClientTest.java" -Value '' | Out-Null
+# Episode 1, in the order the script shows them. Exceptions are not typed (they stay in src).
+$files = @(
+    @{ Dir = $pkg;  Name = 'PaymentClient.java' },
+    @{ Dir = $pkg;  Name = 'PaymentConfig.java' },
+    @{ Dir = $pkg;  Name = 'OrderController.java' },
+    @{ Dir = $tpkg; Name = 'PaymentClientTest.java' },
+    @{ Dir = $tpkg; Name = 'OrderControllerTest.java' }
+)
+if (-not $TestOnly) { foreach ($f in $files) { New-Item -Force "$proj\$($f.Dir)\$($f.Name)" -Value '' | Out-Null } }
 
 function Get-IdeaWindow {
     Get-Process idea64 -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like '*orders*' -or $_.MainWindowTitle -like '*springboot*' } | Select-Object -First 1
@@ -67,17 +76,19 @@ $ff.Start() | Out-Null
 Start-Sleep 2
 
 try {
-    Open-InIdea "$proj\$pkg\PaymentClient.java"
-    Type-Code "$PSScriptRoot\PaymentClient.java"
-    Start-Sleep 2
-    Open-InIdea "$proj\$tpkg\PaymentClientTest.java"
-    Type-Code "$PSScriptRoot\PaymentClientTest.java"
-    Start-Sleep 2
+    if ($TestOnly) { $last = $files[-1]; Open-InIdea "$proj\$($last.Dir)\$($last.Name)"; Start-Sleep 2 }
+    else {
+        foreach ($f in $files) {
+            Open-InIdea "$proj\$($f.Dir)\$($f.Name)"
+            Type-Code "$PSScriptRoot\$($f.Name)"
+            Start-Sleep 2
+        }
+    }
     [System.Windows.Forms.SendKeys]::SendWait('^s')          # save all
     Start-Sleep 1
     [System.Windows.Forms.SendKeys]::SendWait('%{F12}')      # IntelliJ terminal
     Start-Sleep 4
-    $cmd = '.\mvnw -q test "-Dtest=PaymentClientTest"'   # terminal inherits JAVA_HOME
+    $cmd = '.\mvnw test "-Dtest=PaymentClientTest,OrderControllerTest"'   # terminal inherits JAVA_HOME
     foreach ($ch in $cmd.ToCharArray()) { $k=[string]$ch; if ('+^%~(){}[]'.Contains($k)) { $k = "{$k}" }; [System.Windows.Forms.SendKeys]::SendWait($k); Start-Sleep -Milliseconds 30 }
     [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
     Start-Sleep 45   # tests run

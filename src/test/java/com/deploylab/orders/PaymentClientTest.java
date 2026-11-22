@@ -19,14 +19,16 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 @Import(PaymentConfig.class)
 class PaymentClientTest {
 
-    @Autowired PaymentClient client;
-    @Autowired MockRestServiceServer server;
+    @Autowired
+    PaymentClient client;
+    @Autowired
+    MockRestServiceServer server;
 
     @Test
     void chargesTheOrderWithAuthHeader() {
         server.expect(requestTo("https://payments.example.com/charges/42"))
-              .andExpect(header("Authorization", "Bearer demo-key"))
-              .andRespond(withSuccess("{\"id\":\"ch_1\",\"status\":\"PAID\"}", MediaType.APPLICATION_JSON));
+                .andExpect(header("Authorization", "Bearer demo-key"))
+                .andRespond(withSuccess("{\"id\":\"ch_1\",\"status\":\"PAID\"}", MediaType.APPLICATION_JSON));
 
         assertThat(client.charge("42", 1999).status()).isEqualTo("PAID");
     }
@@ -34,18 +36,18 @@ class PaymentClientTest {
     @Test
     void declinedCardThrowsDeclined() {
         server.expect(requestTo("https://payments.example.com/charges/42"))
-              .andRespond(withStatus(HttpStatus.PAYMENT_REQUIRED));
+                .andRespond(withStatus(HttpStatus.PAYMENT_REQUIRED));
 
         assertThatThrownBy(() -> client.charge("42", 1999))
-              .isInstanceOf(PaymentDeclinedException.class);
+                .isInstanceOf(PaymentDeclinedException.class);
     }
 
     @Test
     void serverErrorThrowsUnavailable() {
         server.expect(requestTo("https://payments.example.com/charges/42"))
-              .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+                .andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
 
         assertThatThrownBy(() -> client.charge("42", 1999))
-              .isInstanceOf(PaymentUnavailableException.class);
+                .isInstanceOf(PaymentUnavailableException.class);
     }
 }

@@ -13,17 +13,19 @@ import static org.mockito.BDDMockito.given;
 @AutoConfigureRestTestClient
 class OrderControllerTest {
 
-    @Autowired RestTestClient client;
-    @MockitoBean PaymentClient payments;
+    @Autowired
+    RestTestClient client;
+    @MockitoBean
+    PaymentClient payments;
 
     @Test
     void paysTheOrder() {
         given(payments.charge("42", 1999)).willReturn(new PaymentClient.Charge("ch_1", "PAID"));
 
         client.post().uri("/orders/42/pay?amountCents=1999")
-              .exchange()
-              .expectStatus().isOk()
-              .expectBody().jsonPath("$.status").isEqualTo("PAID");
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody().jsonPath("$.status").isEqualTo("PAID");
     }
 
     @Test
@@ -31,7 +33,7 @@ class OrderControllerTest {
         given(payments.charge("42", 1999)).willThrow(new PaymentDeclinedException("42"));
 
         client.post().uri("/orders/42/pay?amountCents=1999")
-              .exchange()
-              .expectStatus().isEqualTo(402);
+                .exchange()
+                .expectStatus().isEqualTo(402);
     }
 }

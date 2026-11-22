@@ -27,7 +27,9 @@ public class PaymentClient {
                 .body(Charge.class);
     }
 
-    public record ChargeRequest(long amountCents) {}
+    public record ChargeRequest(long amountCents) {
+    }
 
-    public record Charge(String id, String status) {}
+    public record Charge(String id, String status) {
+    }
 }
