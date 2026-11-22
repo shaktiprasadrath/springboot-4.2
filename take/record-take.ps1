@@ -1,0 +1,88 @@
+# Records one IntelliJ coding take for the Spring Boot 4.2 series.
+# Run it yourself:  powershell -ExecutionPolicy Bypass -File take\record-take.ps1
+# Before: close IntelliJ. During the take (about 2-3 min): hands off mouse and keyboard.
+# Emergency stop: close this PowerShell window.
+
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type @"
+using System; using System.Runtime.InteropServices;
+public class W { [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+                 [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c); }
+"@
+
+$proj  = Split-Path $PSScriptRoot -Parent
+$idea  = 'C:\Program Files\JetBrains\IntelliJ IDEA 2025.3\bin\idea64.exe'
+$out   = Join-Path $proj "take\take-$(Get-Date -Format yyyyMMdd-HHmmss).mkv"
+$pkg   = 'src\main\java\com\deploylab\orders'
+$tpkg  = 'src\test\java\com\deploylab\orders'
+
+if (Get-Process idea64 -ErrorAction SilentlyContinue) { Write-Host 'Close IntelliJ first, then run again.'; exit 1 }
+
+# IntelliJ settings (JDK 21, Maven wrapper, no auto-brackets, no pop-ups, terminal JAVA_HOME) are set once by hand.
+
+# Empty files to type into (the tested code lives in take\).
+New-Item -Force "$proj\$pkg\PaymentClient.java"      -Value '' | Out-Null
+New-Item -Force "$proj\$tpkg\PaymentClientTest.java" -Value '' | Out-Null
+
+function Get-IdeaWindow {
+    Get-Process idea64 -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like '*orders*' -or $_.MainWindowTitle -like '*springboot*' } | Select-Object -First 1
+}
+function Focus-Idea { $p = Get-IdeaWindow; [W]::ShowWindow($p.MainWindowHandle, 3) | Out-Null; [W]::SetForegroundWindow($p.MainWindowHandle) | Out-Null; Start-Sleep -Milliseconds 400 }
+function Open-InIdea($file) { Start-Process $idea -ArgumentList "`"$file`""; Start-Sleep 3; Focus-Idea }
+
+function Type-Code($path) {
+    $rnd = New-Object Random
+    foreach ($line in Get-Content $path) {
+        $t = $line.TrimStart()            # IntelliJ indents by itself on Enter
+        foreach ($ch in $t.ToCharArray()) {
+            $k = [string]$ch
+            if ('+^%~(){}[]'.Contains($k)) { $k = "{$k}" }
+            [System.Windows.Forms.SendKeys]::SendWait($k)
+            Start-Sleep -Milliseconds ($rnd.Next(25, 70))
+        }
+        [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+        Start-Sleep -Milliseconds ($rnd.Next(120, 300))
+    }
+    Start-Sleep 1
+    [System.Windows.Forms.SendKeys]::SendWait('^%l')   # Reformat Code: fixes any indent IntelliJ got wrong while typing
+    Start-Sleep 1
+}
+
+Write-Host 'Starting IntelliJ. Hands off from now on.'
+Start-Process $idea -ArgumentList "`"$proj`""
+for ($i = 0; $i -lt 90 -and -not (Get-IdeaWindow); $i++) { Start-Sleep 2 }
+if (-not (Get-IdeaWindow)) { Write-Host 'IntelliJ window not found (first-start dialog open?). Finish it, close IntelliJ, run again.'; exit 1 }
+Start-Sleep 30   # let indexing finish
+
+# Record only the monitor IntelliJ is on (keeps the other screen private).
+$scr = [System.Windows.Forms.Screen]::FromHandle((Get-IdeaWindow).MainWindowHandle).Bounds
+$ff = New-Object System.Diagnostics.Process
+$ff.StartInfo.FileName = 'ffmpeg'
+$ff.StartInfo.Arguments = "-y -loglevel error -f gdigrab -framerate 30 -offset_x $($scr.X) -offset_y $($scr.Y) -video_size $($scr.Width)x$($scr.Height) -i desktop -c:v libx264 -preset veryfast -crf 20 -pix_fmt yuv420p -f matroska `"$out`""
+$ff.StartInfo.UseShellExecute = $false
+$ff.StartInfo.RedirectStandardInput = $true
+$ff.StartInfo.CreateNoWindow = $true
+$ff.Start() | Out-Null
+Start-Sleep 2
+
+try {
+    Open-InIdea "$proj\$pkg\PaymentClient.java"
+    Type-Code "$PSScriptRoot\PaymentClient.java"
+    Start-Sleep 2
+    Open-InIdea "$proj\$tpkg\PaymentClientTest.java"
+    Type-Code "$PSScriptRoot\PaymentClientTest.java"
+    Start-Sleep 2
+    [System.Windows.Forms.SendKeys]::SendWait('^s')          # save all
+    Start-Sleep 1
+    [System.Windows.Forms.SendKeys]::SendWait('%{F12}')      # IntelliJ terminal
+    Start-Sleep 4
+    $cmd = '.\mvnw -q test "-Dtest=PaymentClientTest"'   # terminal inherits JAVA_HOME
+    foreach ($ch in $cmd.ToCharArray()) { $k=[string]$ch; if ('+^%~(){}[]'.Contains($k)) { $k = "{$k}" }; [System.Windows.Forms.SendKeys]::SendWait($k); Start-Sleep -Milliseconds 30 }
+    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+    Start-Sleep 45   # tests run
+}
+finally {
+    $ff.StandardInput.Write('q'); if (-not $ff.WaitForExit(15000)) { $ff.Kill() }   # mkv stays playable even if cut off
+    Write-Host "Done. Recording: $out"
+}
