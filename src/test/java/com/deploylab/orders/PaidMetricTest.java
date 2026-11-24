@@ -25,9 +25,12 @@ class PaidMetricTest {
     @AutoConfigureRestTestClient
     @AutoConfigureMetrics
     class Default42 {
-        @Autowired RestTestClient client;
-        @Autowired MeterRegistry registry;
-        @MockitoBean PaymentClient payments;
+        @Autowired
+        RestTestClient client;
+        @Autowired
+        MeterRegistry registry;
+        @MockitoBean
+        PaymentClient payments;
 
         @Test
         void counterIsNotInTheTestRegistry() {
@@ -41,9 +44,12 @@ class PaidMetricTest {
     @AutoConfigureRestTestClient
     @AutoConfigureMetrics(useGlobalRegistry = true)
     class GlobalRegistry {
-        @Autowired RestTestClient client;
-        @Autowired MeterRegistry registry;
-        @MockitoBean PaymentClient payments;
+        @Autowired
+        RestTestClient client;
+        @Autowired
+        MeterRegistry registry;
+        @MockitoBean
+        PaymentClient payments;
 
         @Test
         void counterIsCounted() {

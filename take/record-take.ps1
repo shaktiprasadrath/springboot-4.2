@@ -1,9 +1,11 @@
 # Records one IntelliJ coding take for the Spring Boot 4.2 series.
 # Run it yourself:  powershell -ExecutionPolicy Bypass -File take\record-take.ps1
 # Before: close IntelliJ. During the take (about 8-10 min for 5 files): hands off mouse and keyboard.
-# Emergency stop: close this PowerShell window.
+# Emergency stop: close this PowerShell window, then run  git checkout -- src  (the typed files may be half done).
 # -TestOnly: skip typing, just open the last test file and record the test run (about 2 min).
-param([switch]$TestOnly)
+# -Episode 2: the Spring Boot 4.2 behaviour changes take.
+param([switch]$TestOnly, [int]$Episode = 1)
+if ($Episode -notin 1, 2, 3) { Write-Host "No take defined for episode $Episode"; exit 1 }
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
@@ -32,6 +34,29 @@ $files = @(
     @{ Dir = $tpkg; Name = 'PaymentClientTest.java' },
     @{ Dir = $tpkg; Name = 'OrderControllerTest.java' }
 )
+$tests = 'PaymentClientTest,OrderControllerTest'
+if ($Episode -eq 2) {
+    $files = @(
+        @{ Dir = 'src\main\resources'; Name = 'application.properties' },
+        @{ Dir = $pkg;  Name = 'OrderLinkController.java' },
+        @{ Dir = $tpkg; Name = 'ForwardedPrefixTest.java' },
+        @{ Dir = $tpkg; Name = 'RelativeRedirectTest.java' },
+        @{ Dir = $pkg;  Name = 'InvoiceUploadController.java' },
+        @{ Dir = $tpkg; Name = 'InvoiceUploadTest.java' },
+        @{ Dir = $tpkg; Name = 'PaidMetricTest.java' }
+    )
+    $tests = 'ForwardedPrefixTest,RelativeRedirectTest,InvoiceUploadTest,PaidMetricTest'
+}
+if ($Episode -eq 3) {
+    $files = @(
+        @{ Dir = $tpkg; Name = 'ConventionsTest.java' },
+        @{ Dir = 'src\main\resources'; Name = 'application-otlp.properties' },
+        @{ Dir = $tpkg; Name = 'OtlpConfigTest.java' },
+        @{ Dir = $pkg;  Name = 'CheckoutController.java' },
+        @{ Dir = $tpkg; Name = 'TraceIdKeyTest.java' }
+    )
+    $tests = 'ConventionsTest,OtlpConfigTest,TraceIdKeyTest'
+}
 if (-not $TestOnly) { foreach ($f in $files) { New-Item -Force "$proj\$($f.Dir)\$($f.Name)" -Value '' | Out-Null } }
 
 function Get-IdeaWindow {
@@ -88,12 +113,13 @@ try {
     Start-Sleep 1
     [System.Windows.Forms.SendKeys]::SendWait('%{F12}')      # IntelliJ terminal
     Start-Sleep 4
-    $cmd = '.\mvnw test "-Dtest=PaymentClientTest,OrderControllerTest"'   # terminal inherits JAVA_HOME
+    $cmd = ".\mvnw test `"-Dtest=$tests`""   # terminal inherits JAVA_HOME
     foreach ($ch in $cmd.ToCharArray()) { $k=[string]$ch; if ('+^%~(){}[]'.Contains($k)) { $k = "{$k}" }; [System.Windows.Forms.SendKeys]::SendWait($k); Start-Sleep -Milliseconds 30 }
     [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
-    Start-Sleep 45   # tests run
+    Start-Sleep (45 + 15 * ($Episode - 1))   # tests run (episode 2 starts 8 Spring contexts)
 }
 finally {
     $ff.StandardInput.Write('q'); if (-not $ff.WaitForExit(15000)) { $ff.Kill() }   # mkv stays playable even if cut off
+    if (-not $TestOnly) { foreach ($f in $files) { Copy-Item "$PSScriptRoot\$($f.Name)" "$proj\$($f.Dir)\$($f.Name)" -Force } }   # a stopped take never leaves src half-typed
     Write-Host "Done. Recording: $out"
 }

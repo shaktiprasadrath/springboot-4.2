@@ -18,7 +18,9 @@ class InvoiceUploadTest {
         MultipartBodyBuilder body = new MultipartBodyBuilder();
         body.part("file", new ByteArrayResource(new byte[TWO_MB]) {
             @Override
-            public String getFilename() { return "invoice.pdf"; }
+            public String getFilename() {
+                return "invoice.pdf";
+            }
         });
         return client.post().uri("/orders/42/invoice")
                 .body(BodyInserters.fromMultipartData(body.build()))
