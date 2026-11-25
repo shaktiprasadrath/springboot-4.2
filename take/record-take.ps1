@@ -5,7 +5,7 @@
 # -TestOnly: skip typing, just open the last test file and record the test run (about 2 min).
 # -Episode 2: the Spring Boot 4.2 behaviour changes take.
 param([switch]$TestOnly, [int]$Episode = 1)
-if ($Episode -notin 1, 2, 3) { Write-Host "No take defined for episode $Episode"; exit 1 }
+if ($Episode -notin 1, 2, 3, 4) { Write-Host "No take defined for episode $Episode"; exit 1 }
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
@@ -56,6 +56,15 @@ if ($Episode -eq 3) {
         @{ Dir = $tpkg; Name = 'TraceIdKeyTest.java' }
     )
     $tests = 'ConventionsTest,OtlpConfigTest,TraceIdKeyTest'
+}
+if ($Episode -eq 4) {
+    $files = @(
+        @{ Dir = $pkg;  Name = 'OrderEventPublisher.java' },
+        @{ Dir = $tpkg; Name = 'RabbitStarterTest.java' },
+        @{ Dir = $pkg;  Name = 'RefundProperties.java' },
+        @{ Dir = $tpkg; Name = 'DefaultValueTest.java' }
+    )
+    $tests = 'RabbitStarterTest,DefaultValueTest'
 }
 if (-not $TestOnly) { foreach ($f in $files) { New-Item -Force "$proj\$($f.Dir)\$($f.Name)" -Value '' | Out-Null } }
 
@@ -116,7 +125,7 @@ try {
     $cmd = ".\mvnw test `"-Dtest=$tests`""   # terminal inherits JAVA_HOME
     foreach ($ch in $cmd.ToCharArray()) { $k=[string]$ch; if ('+^%~(){}[]'.Contains($k)) { $k = "{$k}" }; [System.Windows.Forms.SendKeys]::SendWait($k); Start-Sleep -Milliseconds 30 }
     [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
-    Start-Sleep (45 + 15 * ($Episode - 1))   # tests run (episode 2 starts 8 Spring contexts)
+    Start-Sleep ([Math]::Min(45 + 15 * ($Episode - 1), 75))   # tests run (episode 2 starts 8 Spring contexts)
 }
 finally {
     $ff.StandardInput.Write('q'); if (-not $ff.WaitForExit(15000)) { $ff.Kill() }   # mkv stays playable even if cut off
